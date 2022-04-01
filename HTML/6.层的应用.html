@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>层的应用</title>
+</head>
+<body>
+<div id="layer1" style="postion:absolute;z-index:1;left:14px;top:6px;width:240px;height:115px;
+                    background-color: cadetblue;border: 5px dotted darkgreen">
+    <p>层的属性<br>北京大学<br>&nbsp&nbsp图书馆</p>
+
+    <div id="layer2" style="postion:absolute;z-index:2;left:14px;top:3px;width:210px;height:104px;
+                    background-color: blue;border: 5px double #ffffff">
+        <p>北京大学<br>&nbsp&nbsp团委</p>
+    </div>
+
+</div>
+
+<div id="layer3" style="postion:absolute;z-index:2;left:14px;top:3px;width:210px;height:104px;
+                    background-color: blue;border: 5px double #ffffff">
+    <p>北京大学<br>&nbsp&nbsp团委</p>
+</div>
+<!--嵌套？？？？嵌套的DIV只能显示在已存在文字的下方，所以超出了外层DIV-->
+<p>div标记不同行，span标记同一行</p>
+<span border="0">hello</span>
+<span border="0">hello</span>
+<span border="0">hello</span>
+</body>
+</html>
