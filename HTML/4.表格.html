@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>表格-课程表</title>
+</head>
+<body>
+<!--frame设置边框样式;cellspacing单元格间距;cellpadding单元格边距-->
+<table width="500" height="40" frame="border" rules="all"
+       bordercolor="gray" bgcolor="#5f9ea0" align="left"
+       cellspacing="5" cellpadding="5">
+<!--<table width="500" border="2" bordercolor="gray" align="left">-->
+<!--    标题-->
+    <caption>课程表</caption>
+    <tr>
+<!--  表头-->
+        <th>&nbsp</th>
+        <th>MON</th>
+        <th>TUE</th>
+        <th>WEN</th>
+        <th>THI</th>
+        <th>FRI</th>
+    </tr>
+<!--单元格对齐方式-->
+    <tr align="center" valign="middle">
+        <th>第一节</th>
+<!-- 设置单元格宽度-->
+        <td width="30%">语文</td>
+<!-- 跨行合并单元格-->
+        <td rowspan="2">数学</td>
+
+    </tr>
+    <tr align="rigt">
+        <th valign="top">第二节</th>
+        <td valign="bottom">英语</td>
+        <td></td>
+        <!-- 跨列合并单元格-->
+        <td colspan="2">体育</td>
+    </tr>
+<!--表格嵌套-->
+    <table width="470" border="1" align="center">
+        <tr>
+            <td width="170">&nbsp</td>
+            <td width="157" rowspan="3">zhengwem</td>
+            <td width="121">news link</td>
+        </tr>
+        <tr>
+<!--            嵌套-->
+            <td>
+                <table width="100%" border="1">
+                 <tr><td>&nbsp</td></tr>
+                 <tr><td>nev</td></tr>
+                 <tr><td>&nbsp</td></tr>
+                </table>
+            </td>
+            <td rowspan="2">&nbsp</td>
+        </tr>
+            <td>&nbsp</td>
+        <tr>
+
+        </tr>
+    </table>
+</table>
+</body>
+</html>
