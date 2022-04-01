@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <title>Level 2</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <script src="https://d3js.org/d3.v5.min.js"></script>
+</head>
+<body>
+    <div id="chart"></div>
+    <div>
+        Last <input type="range" min="5" max="10" value="5" class="slider" id="year-slider"><span id="year-number"></span> Year
+    </div>
+    <button onclick="showMax()">Max</button>
+    <button onclick="showMin()">Min</button>
+    <a href="../index.html">Back</a>
+    <script>
+        var margin = { top: 100, right: 50, bottom: 80, left: 80 },
+            width = 960 - margin.left - margin.right,
+            height = 600 - margin.top - margin.bottom,
+            gridHeight = height / 12, // there are 12 months in a year
+            gridMargin = { top: 3, right: 3, bottom: 3, left: 3 },
+            legendSize = { height: 20, width: 150}
+            months = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+        
+        var svg = d3.select("#chart").append("svg")
+            .attr("width", width + margin.left + margin.right)
+            .attr("height", height + margin.top + margin.bottom)
+        
+        var mode = "max";
+
+        // define axis
+        var xScale = d3.scaleLinear(); // Year
+        var yScale = d3.scalePoint(); // Month
+        var colorScale = d3.scaleLinear(); // Color legend
+        var zScale = d3.scaleBand().padding(0.2); // Day
+        var wScale = d3.scaleLinear(); // Temperature
+        
+        var color = d3.scaleSequential(d3.interpolateRdBu);
+
+        // create tooltip
+        var tooltip = d3.select("body")
+            .append("div")
+            .style("position", "absolute")
+            .style("background-color", "snow")
+            .style("padding", "2px")
+            .style("z-index", "1")
+            .style("visibility", "hidden")
+            .text("a simple tooltip");
+        
+        // create title
+        var title = svg.append("text")
+            .attr("x", (width + margin.left + margin.right) / 2)             
+            .attr("y", (margin.top / 2))
+            .attr("text-anchor", "middle")  
+            .style("font-size", "16px")
+            .text("Average " +  (mode === "max" ? "Maximun" : "Minimum") + " Monthly Temperature of Hong Kong");
+
+        // create chart
+        var g = svg.append("g")
+            .attr("transform", "translate(" + margin.left + "," + margin.top + ")");
+        var xAxis = g.append("g");
+        var yAxis = g.append("g");
+        var gridsG = g.append("g");
+
+        // create legend
+        // https://beta.observablehq.com/@tmcw/d3-scalesequential-continuous-color-legend-example
+        // https://www.visualcinnamon.com/2016/05/smooth-color-legend-d3-svg-gradient.html
+        var defs = svg.append("defs");
+        defs.append("linearGradient")
+            .attr("id", "linear-gradient")
+            .selectAll("stop")
+            .data(color.ticks().reverse().map((t, i, n) => ({ offset: i/n.length, color: color(t) })))
+            .enter().append("stop")
+            .attr("offset", d => d.offset)
+            .attr("stop-color", d => d.color);
+        var legend = g.append('g')
+            .attr("transform", "translate(0," + (height + 10 + legendSize.height) + ")")
+        legend.append("rect")
+            .attr("width", legendSize.width)
+            .attr("height", legendSize.height)
+            .style("fill", "url(#linear-gradient)");
+
+        var colorAxis = legend.append('g').attr("transform", "translate(0," + legendSize.height + ")");
+
+        var _dataNested;
+
+        // Handle input
+        var yearSlider = d3.select("input#year-slider");
+        var yearNum = d3.select("span#year-number").text(yearSlider.property("value"));
+        yearSlider.on("input", function () {
+            yearNum.text(this.value);
+            updateYear(_dataNested, this.value)
+        })
+
+        d3.csv("../temperature_daily.csv").then(function(data) {
+            // get data from csv
+            console.log(data)
+
+            // Data preprocess
+            var parseTime = d3.timeParse("%Y-%m-%d");
+            var formatTime = d3.timeFormat("%Y-%m");
+            data.forEach(element => {
+                var date = parseTime(element.date);
+                // NOTE: change to temperature to int from string
+                element.min_temperature = parseInt(element.min_temperature, 10);
+                element.max_temperature = parseInt(element.max_temperature, 10);
+                element.year = date.getFullYear();
+                element.month = months[date.getMonth()];
+                element.day = date.getDate();
+                element.ym = formatTime(date);
+            });
+            _dataNested = d3.nest()
+                .key(function(d) { return d.ym; })
+                .rollup(function(d) { 
+                    return {
+                        "month": d[0].month, 
+                        "year": d[0].year, 
+                        "avg_min": d3.mean(d, function(d) {return d.min_temperature;}), 
+                        "avg_max": d3.mean(d, function(d) {return d.max_temperature;}), 
+                        "daily": d.map(e => {
+                            return {
+                                "day": e.day,
+                                "min": e.min_temperature,
+                                "max": e.max_temperature,
+                            }
+                        }),
+                    }
+                })
+                .entries(data);
+            // Sort it in descending order so that there will be no problem when we append the data later because the key of the data is using index (by default)
+            _dataNested.sort(function(x, y) {
+                return d3.descending(x.key, y.key);
+            })
+            console.log(_dataNested);
+
+            // Filter data for visualization
+            var _data = _dataNested.filter(function (d) { return d.value.year > (d3.max(_dataNested.map(e => e.value.year)) - yearSlider.property("value")) });
+            console.log(_data);
+
+            var xRange = d3.extent(_data.map(e => e.value.year));
+            var minTemp = d3.min(_data.map(e => e.value.avg_min));
+            var maxTemp = d3.max(_data.map(e => e.value.avg_max));
+            var gridWidth = width / (xRange[1] - xRange[0] + 1);
+            var wMin =  d3.min(_data.map(e => d3.min(e.value.daily.map(f => f.min))));
+            var wMax = d3.max(_data.map(e => d3.max(e.value.daily.map(f => f.max))));
+            xScale.domain(xRange).range([gridWidth/2, width - gridWidth/2]);
+            yScale.domain(months).range([gridHeight/2, height - gridHeight/2]);
+            color.domain([maxTemp, minTemp]);
+            colorScale.domain(color.domain()).range([legendSize.width, 0]);
+            zScale.domain(d3.range(1,32)).range([0, gridWidth - gridMargin.left - gridMargin.right]);
+            // const reducer = (accumulator, currentValue) => [Math.min(accumulator[0], currentValue[0]), Math.max(accumulator[1], currentValue[1])];
+            wScale.domain([wMin, wMax]).range([gridHeight - gridMargin.top - gridMargin.bottom, 0]);
+
+            xAxis.call(d3.axisTop(xScale).ticks(xRange[1] - xRange[0] + 1, d3.format("d")));
+            yAxis.call(d3.axisLeft(yScale));
+
+            // Create grids
+            var gridsGG = gridsG.selectAll("g")
+                .data(_data)
+                .enter()
+                .append("g")
+                .attr("class", "grid")
+                .attr("transform", d => "translate(" + (xScale(d.value.year) - gridWidth / 2 + gridMargin.left) + "," + (yScale(d.value.month) - gridHeight / 2 + gridMargin.top) + ")");
+
+            // Heatmap for level 1
+            gridsGG.append("rect")
+                .attr("class", "heatmap")
+                .attr("width", gridWidth - gridMargin.left - gridMargin.right)
+                .attr("height", gridHeight - gridMargin.top - gridMargin.bottom)
+                .attr("fill", d => color(mode === "max" ? d.value.avg_max : d.value.avg_min))
+                .on("mouseover", function(d) {
+                    tooltip.style("visibility", "visible").text("Date: " + d.key + " Avg. " + mode + ": " + (mode === "max" ? d.value.avg_max.toFixed(1) : d.value.avg_min.toFixed(1)));
+                })
+                .on("mousemove", function(){return tooltip.style("top", (event.pageY-12)+"px").style("left",(event.pageX+12)+"px");})
+                .on("mouseout", function(){return tooltip.style("visibility", "hidden");})
+            
+            // New chart for level 2
+            // NOTE: There are some missing data
+            // gridsGG.append("g").attr("transform", "translate(0," + (gridHeight - gridMargin.top - gridMargin.bottom) + ")").call(d3.axisBottom(zScale)); // For debug
+            // gridsGG.append("g").call(d3.axisLeft(wScale)); // For debug
+            gridsGG.append("g")
+                .attr("class", "max")
+                .selectAll("rect")
+                .data(function (d) { return d.value.daily; })
+                .enter()
+                .append("rect")
+                .attr("fill", "black")
+                // .style("opacity", .8)
+                .attr("x", function(d) { return zScale(d.day); })
+                .attr("y", function(d) { return wScale(d.max); })
+                .attr("width", zScale.bandwidth())
+                .attr("height", 3);
+
+            gridsGG.append("g")
+                .attr("class", "min")
+                .selectAll("rect")
+                .data(function (d) { return d.value.daily; })
+                .enter()
+                .append("rect")
+                .attr("fill", "white")
+                // .style("opacity", .8)
+                .attr("x", function(d) { return zScale(d.day); })
+                .attr("y", function(d) { return wScale(d.min); })
+                .attr("width", zScale.bandwidth())
+                .attr("height", 3);
+            
+            colorAxis.call(d3.axisBottom(colorScale));
+        })
+
+        function showMax() {
+            mode = "max"
+            title.text("Average Maximum Monthly Temperature of Hong Kong");
+            gridsG.selectAll("rect.heatmap")
+                .on("mouseover", function(d) {
+                    tooltip.style("visibility", "visible").text("Date: " + d.key + " Avg. max: " + d.value.avg_max.toFixed(1));
+                })
+                .transition().attr("fill", d => color(d.value.avg_max));
+        }
+
+        function showMin() {
+            mode = "min";
+            title.text("Average Minimum Monthly Temperature of Hong Kong");
+            gridsG.selectAll("rect.heatmap")
+                .on("mouseover", function(d) {
+                    tooltip.style("visibility", "visible").text("Date: " + d.key + " Avg. min: " + d.value.avg_min.toFixed(1));
+                })
+                .transition().attr("fill", d => color(d.value.avg_min));
+        }
+
+        function updateYear(_dataNested, lastYear) {
+            var _data = _dataNested.filter(function (d) { return d.value.year > (d3.max(_dataNested.map(e => e.value.year)) - lastYear) });
+            console.log(_data);
+
+            // Update axis
+            var xRange = d3.extent(_data.map(e => e.value.year));
+            var minTemp = d3.min(_data.map(e => e.value.avg_min));
+            var maxTemp = d3.max(_data.map(e => e.value.avg_max));
+            var gridWidth = width / (xRange[1] - xRange[0] + 1);
+            var wMin =  d3.min(_data.map(e => d3.min(e.value.daily.map(f => f.min))));
+            var wMax = d3.max(_data.map(e => d3.max(e.value.daily.map(f => f.max))));
+            xScale.domain(xRange).range([gridWidth/2, width - gridWidth/2]);
+            yScale.domain(months).range([gridHeight/2, height - gridHeight/2]);
+            color.domain([maxTemp, minTemp]);
+            colorScale.domain(color.domain()).range([legendSize.width, 0]);
+            zScale.domain(d3.range(1,32)).range([0, gridWidth - gridMargin.left - gridMargin.right]);
+            // const reducer = (accumulator, currentValue) => [Math.min(accumulator[0], currentValue[0]), Math.max(accumulator[1], currentValue[1])];
+            wScale.domain([wMin, wMax]).range([gridHeight - gridMargin.top - gridMargin.bottom, 0]);
+
+            xAxis.call(d3.axisTop(xScale).ticks(xRange[1] - xRange[0] + 1, d3.format("d")));
+            yAxis.call(d3.axisLeft(yScale));
+
+            // Join
+            var grids = gridsG.selectAll("g.grid")
+                .data(_data)
+
+            // Enter
+            var gridsGG = grids.enter().append("g")
+                .attr("class", "grid")
+                .attr("transform", d => "translate(" + (xScale(d.value.year) - gridWidth / 2 + gridMargin.left) + "," + (yScale(d.value.month) - gridHeight / 2 + gridMargin.top) + ")")
+
+            // Heatmap
+            gridsGG.append("rect")
+                .attr("class", "heatmap")
+                .attr("width", gridWidth - gridMargin.left - gridMargin.right)
+                .attr("height", gridHeight - gridMargin.top - gridMargin.bottom)
+                .attr("fill", d => color(mode === "max" ? d.value.avg_max : d.value.avg_min))
+                .on('mouseover', function(d) {
+                    tooltip.style("visibility", "visible").text("Date: " + d.key + " Avg. " + mode + ": " + (mode === "max" ? d.value.avg_max.toFixed(1) : d.value.avg_min.toFixed(1)));
+                })
+                .on("mousemove", function(){return tooltip.style("top", (event.pageY-12)+"px").style("left",(event.pageX+12)+"px");})
+                .on("mouseout", function(){return tooltip.style("visibility", "hidden");});
+
+            // Daily
+            gridsGG.append("g")
+                .attr("class", "min")
+                .selectAll("rect")
+                .data(function (d) { return d.value.daily; })
+                .enter()
+                .append("rect")
+                .attr("fill", "white")
+                .attr("x", function(d) { return zScale(d.day); })
+                .attr("y", function(d) { return wScale(d.min); })
+                .attr("width", zScale.bandwidth())
+                .attr("height", 3);
+
+            gridsGG.append("g")
+                .attr("class", "max")
+                .selectAll("rect")
+                .data(function (d) { return d.value.daily; })
+                .enter()
+                .append("rect")
+                .attr("fill", "black")
+                .attr("x", function(d) { return zScale(d.day); })
+                .attr("y", function(d) { return wScale(d.max); })
+                .attr("width", zScale.bandwidth())
+                .attr("height", 3);
+            
+            // Update
+            grids.merge(grids)
+                .transition()
+                .attr("transform", d => "translate(" + (xScale(d.value.year) - gridWidth / 2 + gridMargin.left) + "," + (yScale(d.value.month) - gridHeight / 2 + gridMargin.top) + ")")
+                .selectAll("rect.heatmap")
+                .attr("width", gridWidth - gridMargin.left - gridMargin.right)
+                .attr("height", gridHeight - gridMargin.top - gridMargin.bottom)
+                .attr("fill", d => color(mode === "max" ? d.value.avg_max : d.value.avg_min))
+
+            grids.selectAll("g.max").selectAll("rect")
+                .attr("fill", "black")
+                .attr("x", function(d) { return zScale(d.day); })
+                .attr("y", function(d) { return wScale(d.max); })
+                .attr("width", zScale.bandwidth())
+                .attr("height", 3);
+
+            grids.selectAll("g.min").selectAll("rect")
+                .attr("fill", "white")
+                .attr("x", function(d) { return zScale(d.day); })
+                .attr("y", function(d) { return wScale(d.min); })
+                .attr("width", zScale.bandwidth())
+                .attr("height", 3);
+            
+            // Remove
+            grids.exit().transition().remove();
+            
+            colorAxis.call(d3.axisBottom(colorScale));
+        }
+    </script>
+</body>
+</html>
